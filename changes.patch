@@ -1,0 +1,204 @@
+diff --git a/c-sharp/Check.Tests/Check.Tests.csproj b/c-sharp/Check.Tests/Check.Tests.csproj
+index bbc5c04..80bdba7 100644
+--- a/c-sharp/Check.Tests/Check.Tests.csproj
++++ b/c-sharp/Check.Tests/Check.Tests.csproj
+@@ -1,7 +1,7 @@
+ <Project Sdk="Microsoft.NET.Sdk">
+ 
+   <PropertyGroup>
+-    <TargetFramework>net7.0</TargetFramework>
++    <TargetFramework>net9.0</TargetFramework>
+     <IsPackable>false</IsPackable>
+   </PropertyGroup>
+ 
+diff --git a/c-sharp/Check.Tests/VendingMachineTests.cs b/c-sharp/Check.Tests/VendingMachineTests.cs
+new file mode 100644
+index 0000000..ad68c21
+--- /dev/null
++++ b/c-sharp/Check.Tests/VendingMachineTests.cs
+@@ -0,0 +1,90 @@
++using System;
++using Xunit;
++
++namespace Check.Tests;
++
++public class VendingMachineTests
++{
++    [Fact]
++    public void GivenTheCorrectAmountOfMoney_WhenAnOrderIsPlaced_ProductIsDispensedWithChange()
++    {
++        var item = new Item("candy", 1m);
++        var items = new Item[] { item };
++        var sut = new VendingMachine(items);
++        var availableCash = 10m;
++
++        var expectedChange = 9m;
++
++        var (product, change) = sut.Vend(0, availableCash);
++
++        Assert.Equal(change, expectedChange);
++        Assert.Equivalent(product, item);
++    }
++
++    [Fact]
++    public void GivenTheIncorrectAmountOfMoney_WhenAnOrderIsPlaced_ProductIsNotDispensedAndChangeMatchesCash()
++    {
++        var items = new Item[] { new("candy", 10m) };
++        var sut = new VendingMachine(items);
++        var availableCash = 1m;
++
++        var expectedChange = 1m;
++
++        var (product, change) = sut.Vend(0, availableCash);
++
++        Assert.Equal(change, expectedChange);
++        Assert.Equivalent(product, null);
++    }
++
++    [Fact]
++    public void GivenOnlyOneItemInMachine_WhenTwoOrdersPlaced_OnlyOneItemVended()
++    {
++        var item = new Item("candy", 1m);
++        var items = new Item[] { item };
++        var sut = new VendingMachine(items);
++        var availableCash = 10m;
++
++        var expectedChange = 9m;
++
++        var (product, change) = sut.Vend(0, availableCash);
++        var (product2, change2) = sut.Vend(0, change);
++
++        Assert.Equal(change, expectedChange);
++        Assert.Equivalent(product, item);
++
++        Assert.Equal(change, change2);
++        Assert.Equivalent(product2, null);
++    }
++
++    [Fact]
++    public void GivenInitialInventory_WhenNewItemsAdded_InventoryCountUpdates() 
++    {
++        var item = new Item("candy", 1m);
++        var items = new Item[] { item };
++        var sut = new VendingMachine(items);
++        var newItem = new Item("candy", 1m);
++
++        var newInventoryCount = sut.AddItems(newItem);
++
++        Assert.Equal(2, newInventoryCount);
++    }
++
++    [Fact]
++    public void GivenInitialInventory_When15NewItemsAdded_CapacityMaxedOut()
++    {
++        var item = new Item("candy", 1m);
++        var items = new Item[] { item };
++        var sut = new VendingMachine(items);
++
++        var newItems = new Item[15];
++
++        for (var i = 0; i < 15; i++)
++        {
++            newItems[i] = new Item("candy", 1m);
++        }
++
++        var newInventoryCount = sut.AddItems(newItems);
++
++        Assert.Equal(VendingMachine.Capacity, newInventoryCount);
++    }
++}
+diff --git a/c-sharp/Check/Check.csproj b/c-sharp/Check/Check.csproj
+index 3370449..8535b48 100644
+--- a/c-sharp/Check/Check.csproj
++++ b/c-sharp/Check/Check.csproj
+@@ -2,7 +2,7 @@
+ 
+   <PropertyGroup>
+     <OutputType>Exe</OutputType>
+-    <TargetFramework>net7.0</TargetFramework>
++    <TargetFramework>net9.0</TargetFramework>
+   </PropertyGroup>
+ 
+ </Project>
+diff --git a/c-sharp/Check/Item.cs b/c-sharp/Check/Item.cs
+new file mode 100644
+index 0000000..1d5a6d8
+--- /dev/null
++++ b/c-sharp/Check/Item.cs
+@@ -0,0 +1 @@
++public record Item(string Name, decimal Value);
+\ No newline at end of file
+diff --git a/c-sharp/Check/VendingMachine.cs b/c-sharp/Check/VendingMachine.cs
+new file mode 100644
+index 0000000..3389516
+--- /dev/null
++++ b/c-sharp/Check/VendingMachine.cs
+@@ -0,0 +1,34 @@
++using System;
++using System.Linq;
++
++public class VendingMachine(Item[] Items)
++{
++    public const int Capacity = 10;
++
++    public (Item?, decimal) Vend(int coordinate, decimal cash)
++    {
++        if (Items[coordinate] is null || Items[coordinate].Value > cash) return (null, cash);
++
++        var vendedItem = Items[coordinate];
++        Items[coordinate] = null;
++
++        var change = cash - vendedItem.Value;
++
++        return (vendedItem, change);
++    }
++
++    public int AddItems(params Item[] newItems) 
++    {
++        var itemsList = Items.ToList();
++        var initialCount = Items.Length;
++
++        var availableCapacity = Capacity - initialCount;
++
++        var countToAdd = Math.Min(availableCapacity, newItems.Length);
++        itemsList.AddRange(newItems[..countToAdd]);
++        
++        Items = itemsList.ToArray();
++
++        return Items.Length;
++    }
++}
+diff --git a/c-sharp/Makefile b/c-sharp/Makefile
+index ac31be3..e90ddca 100644
+--- a/c-sharp/Makefile
++++ b/c-sharp/Makefile
+@@ -1,8 +1,7 @@
+ init:
+-	dotnet restore;
+ 	dotnet build
+ 
+ verify:
+ 	dotnet test
+ 
+-.PHONY: init verify
+\ No newline at end of file
++.PHONY: init verify 
+\ No newline at end of file
+diff --git a/c-sharp/README.md b/c-sharp/README.md
+index 201f3de..92bc602 100644
+--- a/c-sharp/README.md
++++ b/c-sharp/README.md
+@@ -9,4 +9,10 @@
+ - `make init`
+     - build the project
+ - `make verify`
+-    - run tests
+\ No newline at end of file
++    - run tests 
++
++# Vending Machine
++
++We want to simulate how a vending machine works. Given an amount of cash and a coordinate for the product, it will -- given the right amount of cash -- dispense the product and dish out the remainder.
++
++Give it the ability to add more inventory and have a capacity of 10 for each item.
+\ No newline at end of file
